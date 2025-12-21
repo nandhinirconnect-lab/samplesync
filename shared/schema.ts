@@ -17,7 +17,8 @@ export const events = pgTable("events", {
 export const insertEventSchema = createInsertSchema(events).omit({ 
   id: true, 
   createdAt: true,
-  isActive: true 
+  isActive: true,
+  pin: true  // PIN generated server-side
 });
 
 // === TYPES ===

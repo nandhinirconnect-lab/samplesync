@@ -9,19 +9,29 @@ import { v4 as uuidv4 } from "uuid";
 
 export default function Home() {
   const [pin, setPin] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [eventName, setEventName] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   const createEvent = useCreateEvent();
   const joinEvent = useJoinEvent();
 
-  const handleCreate = () => {
-    // Generate a temporary host ID or use a real one if auth existed
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eventName.trim()) {
+      toast({
+        title: "Event name required",
+        description: "Please enter a name for your event.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const hostId = uuidv4();
     createEvent.mutate({
-      name: "My Awesome Party",
+      name: eventName.trim(),
       hostId,
-      pin: Math.floor(1000 + Math.random() * 9000).toString(), // Simple random PIN
     });
   };
 
@@ -108,15 +118,52 @@ export default function Home() {
             </div>
           </div>
 
-          <GlowButton 
-            variant="primary" 
-            size="lg" 
-            className="w-full"
-            onClick={handleCreate}
-            disabled={createEvent.isPending}
-          >
-            {createEvent.isPending ? "Creating..." : "Host an Event"}
-          </GlowButton>
+          {!showCreateForm ? (
+            <GlowButton 
+              variant="primary" 
+              size="lg" 
+              className="w-full"
+              onClick={() => setShowCreateForm(true)}
+              disabled={createEvent.isPending}
+            >
+              Host an Event
+            </GlowButton>
+          ) : (
+            <form onSubmit={handleCreate} className="space-y-3">
+              <div className="glass-panel rounded-xl p-4">
+                <input
+                  type="text"
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="Event name (e.g., New Year Party)"
+                  maxLength={100}
+                  className="w-full bg-transparent border-none text-white placeholder:text-muted-foreground focus:ring-0 outline-none"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <GlowButton 
+                  variant="primary" 
+                  size="lg" 
+                  className="flex-1"
+                  type="submit"
+                  disabled={createEvent.isPending || !eventName.trim()}
+                >
+                  {createEvent.isPending ? "Creating..." : "Create"}
+                </GlowButton>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setEventName("");
+                  }}
+                  className="flex-1 bg-white/10 hover:bg-white/20 text-white rounded-xl px-6 font-bold disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* Features Grid */}

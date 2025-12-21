@@ -18,7 +18,7 @@ export const api = {
       method: 'POST' as const,
       path: '/api/events',
       input: z.object({
-        name: z.string().min(1),
+        name: z.string().min(1).max(100),
         hostId: z.string().uuid(),
       }),
       responses: {

@@ -16,11 +16,22 @@ export async function registerRoutes(
   app.post(api.events.create.path, async (req, res) => {
     try {
       const input = api.events.create.input.parse(req.body);
-      // Generate a simple 4-digit PIN if not provided (though schema requires unique)
-      // For MVP, we'll just use a random 4-digit number.
-      let pin = Math.floor(1000 + Math.random() * 9000).toString();
       
-      // Ideally we check for collision, but for MVP this is fine
+      // Generate a unique 4-digit PIN
+      let pin = "";
+      let attempts = 0;
+      let existingEvent = null;
+      
+      do {
+        pin = Math.floor(1000 + Math.random() * 9000).toString();
+        existingEvent = await storage.getEventByPin(pin);
+        attempts++;
+      } while (existingEvent && attempts < 10);
+      
+      if (existingEvent) {
+        return res.status(500).json({ message: "Failed to generate unique PIN" });
+      }
+      
       const event = await storage.createEvent({
         ...input,
         pin,
