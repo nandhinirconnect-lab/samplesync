@@ -41,6 +41,17 @@ export const api = {
         200: z.custom<typeof events.$inferSelect>(),
         404: errorSchemas.notFound,
       },
+    },
+    stats: {
+      method: 'GET' as const,
+      path: '/api/events/:id/stats',
+      responses: {
+        200: z.object({
+          totalJoined: z.number(),
+          activeNow: z.number(),
+        }),
+        404: errorSchemas.notFound,
+      },
     }
   }
 };

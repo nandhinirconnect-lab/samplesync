@@ -1,12 +1,16 @@
 
 import { db } from "./db";
-import { events, type InsertEvent, type Event } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { events, sessions, type InsertEvent, type Event, type Session } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   createEvent(event: InsertEvent): Promise<Event>;
   getEventByPin(pin: string): Promise<Event | undefined>;
   getEvent(id: number): Promise<Event | undefined>;
+  joinSession(sessionId: string, eventId: number, role: 'host' | 'attendee'): Promise<Session>;
+  leaveSession(sessionId: string): Promise<void>;
+  getActiveSessionCount(eventId: number): Promise<number>;
+  getTotalSessionCount(eventId: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -23,6 +27,45 @@ export class DatabaseStorage implements IStorage {
   async getEvent(id: number): Promise<Event | undefined> {
     const [event] = await db.select().from(events).where(eq(events.id, id));
     return event;
+  }
+
+  async joinSession(sessionId: string, eventId: number, role: 'host' | 'attendee'): Promise<Session> {
+    try {
+      const [session] = await db.insert(sessions).values({
+        id: sessionId,
+        eventId,
+        role,
+      }).returning();
+      return session;
+    } catch (err) {
+      // Session already exists, update it
+      const [session] = await db.update(sessions)
+        .set({ isActive: true, lastHeartbeat: new Date() })
+        .where(eq(sessions.id, sessionId))
+        .returning();
+      return session;
+    }
+  }
+
+  async leaveSession(sessionId: string): Promise<void> {
+    await db.update(sessions)
+      .set({ isActive: false })
+      .where(eq(sessions.id, sessionId))
+      .execute();
+  }
+
+  async getActiveSessionCount(eventId: number): Promise<number> {
+    const result = await db.select({ count: sessions.id })
+      .from(sessions)
+      .where(and(eq(sessions.eventId, eventId), eq(sessions.isActive, true)));
+    return result.length;
+  }
+
+  async getTotalSessionCount(eventId: number): Promise<number> {
+    const result = await db.select({ count: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.eventId, eventId));
+    return result.length;
   }
 }
 

@@ -14,7 +14,7 @@ export default function AttendeeMode() {
   const [, setLocation] = useLocation();
   
   const { data: event, isLoading: eventLoading } = useEvent(eventId);
-  const { isConnected, latency, lastEffect } = useSocket(eventId, 'attendee');
+  const { isConnected, latency, lastEffect } = useSocket(eventId, 'attendee', event?.pin);
   const { requestPermission, hasPermission, toggle, isSupported } = useTorch();
   
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);

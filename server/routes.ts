@@ -65,6 +65,18 @@ export async function registerRoutes(
     res.json(event);
   });
 
+  app.get(api.events.stats.path, async (req, res) => {
+    const event = await storage.getEvent(Number(req.params.id));
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    
+    const activeNow = await storage.getActiveSessionCount(Number(req.params.id));
+    const totalJoined = await storage.getTotalSessionCount(Number(req.params.id));
+    
+    res.json({ activeNow, totalJoined });
+  });
+
   // === SOCKET.IO ===
   
   const io = new SocketIOServer(httpServer, {
@@ -78,13 +90,41 @@ export async function registerRoutes(
   io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
 
-    socket.on("join_event", (pin) => {
-      console.log(`Socket ${socket.id} joining event:${pin}`);
+    socket.on("join_event", async (data) => {
+      const { pin, eventId, role } = data;
+      console.log(`Socket ${socket.id} joining event:${pin} as ${role}`);
+      
+      // Track session in database
+      try {
+        await storage.joinSession(socket.id, eventId, role);
+      } catch (err) {
+        console.error('Failed to join session:', err);
+      }
+      
       socket.join(`event:${pin}`);
+      
+      // Broadcast participant update to all hosts in the event room
+      const activeNow = await storage.getActiveSessionCount(eventId);
+      const totalJoined = await storage.getTotalSessionCount(eventId);
+      io.to(`event:${pin}`).emit("participants_update", { activeNow, totalJoined });
     });
 
-    socket.on("leave_event", (pin) => {
+    socket.on("leave_event", async (data) => {
+      const { pin, eventId } = data;
+      
+      // Update session status
+      try {
+        await storage.leaveSession(socket.id);
+      } catch (err) {
+        console.error('Failed to leave session:', err);
+      }
+      
       socket.leave(`event:${pin}`);
+      
+      // Broadcast updated participant count
+      const activeNow = await storage.getActiveSessionCount(eventId);
+      const totalJoined = await storage.getTotalSessionCount(eventId);
+      io.to(`event:${pin}`).emit("participants_update", { activeNow, totalJoined });
     });
 
     // Host triggering an effect
@@ -115,8 +155,15 @@ export async function registerRoutes(
       }
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       console.log("Client disconnected:", socket.id);
+      
+      // Mark session as inactive on disconnect
+      try {
+        await storage.leaveSession(socket.id);
+      } catch (err) {
+        console.error('Failed to mark session as inactive:', err);
+      }
     });
   });
 

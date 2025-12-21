@@ -7,12 +7,18 @@ import type { EffectPayload, TimeSyncResponse } from '@shared/schema';
 // offset = serverTime - (clientTime + latency/2)
 // correctedTime = Date.now() + offset
 
-export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attendee') {
+export interface ParticipantStats {
+  activeNow: number;
+  totalJoined: number;
+}
+
+export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attendee', pin?: string) {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [latency, setLatency] = useState(0);
   const [timeOffset, setTimeOffset] = useState(0);
   const [lastEffect, setLastEffect] = useState<EffectPayload | null>(null);
+  const [participants, setParticipants] = useState<ParticipantStats>({ activeNow: 0, totalJoined: 0 });
 
   useEffect(() => {
     if (!eventId) return;
@@ -28,6 +34,11 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
     socket.on('connect', () => {
       setIsConnected(true);
       console.log('Socket connected:', socket.id);
+      
+      // Notify server that we're joining the event
+      if (eventId && pin) {
+        socket.emit('join_event', { pin, eventId, role });
+      }
     });
 
     socket.on('disconnect', () => {
@@ -44,6 +55,10 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
       setTimeout(() => {
         setLastEffect(payload);
       }, delay);
+    });
+
+    socket.on('participants_update', (stats: ParticipantStats) => {
+      setParticipants(stats);
     });
 
     // Time Sync Logic
@@ -70,7 +85,7 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
       clearInterval(syncInterval);
       socket.disconnect();
     };
-  }, [eventId, role, timeOffset]);
+  }, [eventId, role, timeOffset, pin]);
 
   const emitEffect = (type: EffectPayload['type'], options: Partial<EffectPayload> = {}) => {
     if (!socketRef.current || role !== 'host') return;
@@ -90,5 +105,5 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
     socketRef.current.emit('effect', payload);
   };
 
-  return { isConnected, latency, timeOffset, lastEffect, emitEffect };
+  return { isConnected, latency, timeOffset, lastEffect, emitEffect, participants };
 }

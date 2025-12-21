@@ -13,6 +13,15 @@ export const events = pgTable("events", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(), // Session ID (socket ID or UUID)
+  eventId: integer("event_id").notNull(),
+  role: text("role").notNull(), // 'host' or 'attendee'
+  isActive: boolean("is_active").default(true),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  lastHeartbeat: timestamp("last_heartbeat").defaultNow(),
+});
+
 // === SCHEMAS ===
 export const insertEventSchema = createInsertSchema(events).omit({ 
   id: true, 
@@ -24,6 +33,13 @@ export const insertEventSchema = createInsertSchema(events).omit({
 // === TYPES ===
 export type Event = typeof events.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
+
+export type Session = typeof sessions.$inferSelect;
+
+export interface ParticipantStats {
+  totalJoined: number;
+  activeNow: number;
+}
 
 // === SOCKET TYPES ===
 // Effect types

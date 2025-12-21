@@ -4,7 +4,7 @@ import { useSocket } from "@/hooks/use-socket";
 import { useEvent } from "@/hooks/use-events";
 import { GlowButton } from "@/components/GlowButton";
 import { StatusIndicator } from "@/components/StatusIndicator";
-import { Zap, ZapOff, Activity, AlertCircle, StopCircle, Radio, Settings2, Share2, Copy } from "lucide-react";
+import { Zap, ZapOff, Activity, AlertCircle, StopCircle, Radio, Settings2, Share2, Copy, Users, Wifi } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import type { EffectType } from "@shared/schema";
@@ -13,7 +13,7 @@ export default function HostDashboard() {
   const { id } = useParams();
   const eventId = parseInt(id || "0");
   const { data: event, isLoading: eventLoading } = useEvent(eventId);
-  const { isConnected, latency, emitEffect } = useSocket(eventId, 'host');
+  const { isConnected, latency, emitEffect, participants } = useSocket(eventId, 'host', event?.pin);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -72,24 +72,47 @@ export default function HostDashboard() {
 
       <main className="max-w-md mx-auto px-6 pt-8 space-y-8">
         
-        {/* Connection Card */}
+        {/* Event Info Card */}
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-panel rounded-2xl p-6 text-center space-y-4 relative overflow-hidden"
+          className="glass-panel rounded-2xl p-6 space-y-6 relative overflow-hidden"
         >
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-accent to-secondary" />
           
-          <div>
-            <p className="text-muted-foreground text-sm uppercase tracking-wider font-bold mb-1">Event PIN</p>
+          {/* PIN Section */}
+          <div className="text-center space-y-2">
+            <p className="text-muted-foreground text-sm uppercase tracking-wider font-bold">Event PIN</p>
             <div 
               onClick={handleCopyPin}
               className="text-6xl font-display font-black text-white tracking-widest cursor-pointer hover:scale-105 transition-transform active:scale-95"
             >
               {event.pin}
             </div>
-            <div className="flex items-center justify-center gap-2 mt-2 text-xs text-primary cursor-pointer hover:underline" onClick={handleCopyPin}>
+            <div className="flex items-center justify-center gap-2 text-xs text-primary cursor-pointer hover:underline" onClick={handleCopyPin}>
               <Copy className="w-3 h-3" /> Tap to copy
+            </div>
+          </div>
+
+          {/* Participant Stats */}
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 mb-2">
+                <Wifi className="w-4 h-4 text-green-500" />
+                <span className="text-xs text-muted-foreground uppercase font-bold">Active Now</span>
+              </div>
+              <div className="text-3xl font-display font-black text-white">
+                {participants.activeNow}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 mb-2">
+                <Users className="w-4 h-4 text-secondary" />
+                <span className="text-xs text-muted-foreground uppercase font-bold">Total Joined</span>
+              </div>
+              <div className="text-3xl font-display font-black text-white">
+                {participants.totalJoined}
+              </div>
             </div>
           </div>
         </motion.div>
