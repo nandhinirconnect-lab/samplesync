@@ -211,7 +211,7 @@ export default function AttendeeMode() {
 
       {/* Footer */}
       <div className="p-6 text-center text-white/10 text-[10px] uppercase tracking-widest z-10">
-        Synced via TorchSync
+        Synced via FlashMan
       </div>
     </div>
   );

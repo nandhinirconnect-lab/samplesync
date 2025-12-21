@@ -79,10 +79,10 @@ export default function Home() {
             <Zap className="w-12 h-12 text-primary" />
           </motion.div>
           <h1 className="text-5xl md:text-7xl font-display font-black tracking-tighter text-white">
-            TORCH<span className="text-gradient">SYNC</span>
+            FLASH<span className="text-gradient">MAN</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-xs mx-auto">
-            Synchronize every phone in the crowd for an immersive light show.
+            Control the crowd's flashlights for the ultimate synchronized light show.
           </p>
         </div>
 

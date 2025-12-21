@@ -6,8 +6,8 @@ Here is the complete Flutter starter code as requested. You can copy these files
 ## 1. `pubspec.yaml` (Dependencies)
 
 ```yaml
-name: torch_sync_app
-description: A real-time torch synchronization app.
+name: flashman_app
+description: A real-time flashlight synchronization app.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -196,7 +196,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Torch Sync',
+      title: 'FlashMan',
       theme: ThemeData.dark(),
       home: const HomeScreen(),
     );
@@ -219,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera permission needed for torch')),
+        const SnackBar(content: Text('Camera permission needed for flashlight')),
       );
     }
   }
@@ -227,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Torch Sync')),
+      appBar: AppBar(title: const Text('FlashMan')),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -241,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _joinEvent,
-              child: const Text('Join Event'),
+              child: const Text('Join with FlashMan'),
             ),
           ],
         ),
@@ -288,7 +288,7 @@ class _EventScreenState extends State<EventScreen> {
             Text('Connected to Event ${widget.pin}', 
               style: const TextStyle(color: Colors.white)),
             const SizedBox(height: 10),
-            const Text('Keep app open. Torch controlled by host.',
+            const Text('Keep app open. Flashlight controlled by host.',
               style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 40),
             ElevatedButton(
