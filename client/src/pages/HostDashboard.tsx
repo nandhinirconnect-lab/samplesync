@@ -1,0 +1,191 @@
+import { useEffect, useState } from "react";
+import { useParams, useLocation } from "wouter";
+import { useSocket } from "@/hooks/use-socket";
+import { useEvent } from "@/hooks/use-events";
+import { GlowButton } from "@/components/GlowButton";
+import { StatusIndicator } from "@/components/StatusIndicator";
+import { Zap, ZapOff, Activity, AlertCircle, StopCircle, Radio, Settings2, Share2, Copy } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+import type { EffectType } from "@shared/schema";
+
+export default function HostDashboard() {
+  const { id } = useParams();
+  const eventId = parseInt(id || "0");
+  const { data: event, isLoading: eventLoading } = useEvent(eventId);
+  const { isConnected, latency, emitEffect } = useSocket(eventId, 'host');
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  const [activeEffect, setActiveEffect] = useState<EffectType | null>(null);
+  const [strobeHz, setStrobeHz] = useState(5);
+
+  useEffect(() => {
+    if (!eventLoading && !event) {
+      setLocation("/");
+    }
+  }, [event, eventLoading, setLocation]);
+
+  const handleEffect = (type: EffectType) => {
+    setActiveEffect(type);
+    
+    if (type === 'STROBE') {
+      emitEffect('STROBE', { frequency: strobeHz, duration: 10000 }); // 10s default safety
+    } else {
+      emitEffect(type);
+    }
+
+    if (type === 'TORCH_OFF') {
+      setActiveEffect(null);
+    }
+  };
+
+  const handleCopyPin = () => {
+    if (event) {
+      navigator.clipboard.writeText(event.pin);
+      toast({ title: "PIN Copied", description: "Share this PIN with attendees." });
+    }
+  };
+
+  if (eventLoading || !event) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-primary font-display text-xl">Loading Controller...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground pb-12">
+      {/* Header */}
+      <header className="bg-white/5 border-b border-white/10 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-md mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1 className="font-display font-bold text-xl tracking-tight">{event.name}</h1>
+            <StatusIndicator connected={isConnected} latency={latency} />
+          </div>
+          <button onClick={() => setLocation("/")} className="text-xs font-bold text-white/50 hover:text-white">
+            EXIT
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-md mx-auto px-6 pt-8 space-y-8">
+        
+        {/* Connection Card */}
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel rounded-2xl p-6 text-center space-y-4 relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-accent to-secondary" />
+          
+          <div>
+            <p className="text-muted-foreground text-sm uppercase tracking-wider font-bold mb-1">Event PIN</p>
+            <div 
+              onClick={handleCopyPin}
+              className="text-6xl font-display font-black text-white tracking-widest cursor-pointer hover:scale-105 transition-transform active:scale-95"
+            >
+              {event.pin}
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-2 text-xs text-primary cursor-pointer hover:underline" onClick={handleCopyPin}>
+              <Copy className="w-3 h-3" /> Tap to copy
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Master Controls */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
+            <span className="font-bold">LIVE CONTROLS</span>
+            <span className="flex items-center gap-1"><Radio className="w-3 h-3 text-red-500 animate-pulse" /> Broadcasting</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <GlowButton 
+              size="xl" 
+              variant="primary" 
+              active={activeEffect === 'TORCH_ON'}
+              onClick={() => handleEffect(activeEffect === 'TORCH_ON' ? 'TORCH_OFF' : 'TORCH_ON')}
+              className="h-32 flex flex-col gap-2"
+            >
+              <Zap className={activeEffect === 'TORCH_ON' ? "fill-white" : ""} />
+              {activeEffect === 'TORCH_ON' ? "ON" : "FLASH"}
+            </GlowButton>
+
+            <GlowButton 
+              size="xl" 
+              variant="secondary"
+              active={activeEffect === 'STROBE'}
+              onClick={() => handleEffect('STROBE')}
+              className="h-32 flex flex-col gap-2"
+            >
+              <Activity />
+              STROBE
+            </GlowButton>
+          </div>
+
+          {/* Strobe Settings */}
+          <AnimatePresence>
+            {activeEffect === 'STROBE' && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="glass-panel p-4 rounded-xl space-y-2 overflow-hidden"
+              >
+                <div className="flex justify-between text-sm font-bold text-white/80">
+                  <span>Frequency</span>
+                  <span>{strobeHz} Hz</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="20" 
+                  step="1" 
+                  value={strobeHz} 
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    setStrobeHz(val);
+                    if (activeEffect === 'STROBE') {
+                      emitEffect('STROBE', { frequency: val, duration: 10000 });
+                    }
+                  }}
+                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-secondary"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <GlowButton 
+            variant="ghost" 
+            size="lg" 
+            className="w-full"
+            onClick={() => handleEffect('PULSE')}
+          >
+            PULSE ONCE
+          </GlowButton>
+
+          <div className="pt-4">
+            <GlowButton 
+              variant="danger" 
+              size="lg" 
+              className="w-full font-black tracking-widest"
+              onClick={() => handleEffect('TORCH_OFF')}
+            >
+              <StopCircle className="w-6 h-6 mr-2" />
+              STOP ALL
+            </GlowButton>
+          </div>
+        </div>
+
+        <div className="text-center">
+          <p className="text-xs text-white/30 max-w-[200px] mx-auto">
+            Effects are automatically stopped after 60 seconds to prevent device overheating.
+          </p>
+        </div>
+
+      </main>
+    </div>
+  );
+}
