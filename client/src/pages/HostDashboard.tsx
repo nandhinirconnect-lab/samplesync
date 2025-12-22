@@ -14,8 +14,8 @@ export default function HostDashboard() {
   const { id } = useParams();
   const eventId = parseInt(id || "0");
   const { data: event, isLoading: eventLoading } = useEvent(eventId);
-  const { isConnected, latency, emitEffect, participants } = useSocket(eventId, 'host', event?.pin);
-  const { requestPermission, hasPermission } = useTorch();
+  const { isConnected, latency, emitEffect, participants, lastEffect } = useSocket(eventId, 'host', event?.pin);
+  const { requestPermission, hasPermission, toggle } = useTorch();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -26,6 +26,55 @@ export default function HostDashboard() {
   useEffect(() => {
     requestPermission();
   }, [requestPermission]);
+
+  // Effect Processing Logic (same as AttendeeMode)
+  useEffect(() => {
+    if (!lastEffect) return;
+
+    let intervalId: NodeJS.Timeout;
+    
+    const runEffect = async () => {
+      const { type, duration = 5000, frequency = 5 } = lastEffect;
+
+      if (type === 'TORCH_OFF') {
+        if (hasPermission) toggle(false);
+        return;
+      }
+
+      if (type === 'TORCH_ON') {
+        if (hasPermission) toggle(true);
+      }
+
+      if (type === 'PULSE') {
+        if (hasPermission) {
+          toggle(true);
+          setTimeout(() => toggle(false), 200);
+        }
+      }
+
+      if (type === 'STROBE') {
+        const period = 1000 / frequency;
+        let state = false;
+        intervalId = setInterval(() => {
+          state = !state;
+          if (hasPermission) {
+            toggle(state);
+          }
+        }, period * 0.5);
+        
+        setTimeout(() => {
+          clearInterval(intervalId);
+          if (hasPermission) toggle(false);
+        }, duration);
+      }
+    };
+
+    runEffect();
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [lastEffect, hasPermission, toggle]);
 
   useEffect(() => {
     if (!eventLoading && !event) {
