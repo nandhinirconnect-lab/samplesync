@@ -1,169 +1,241 @@
-
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { storage } from "./storage";
-import { api } from "@shared/routes";
+import { generateEventId, hashPassword, verifyPassword } from "./auth";
 import { z } from "zod";
+
+// Auth schemas
+const signupSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+const createEventSchema = z.object({
+  name: z.string().min(1),
+  capacity: z.number().int().min(1),
+  startTime: z.number(), // Unix ms
+  endTime: z.number(),
+});
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // === REST API ===
+  // === AUTH ROUTES ===
   
-  app.post(api.events.create.path, async (req, res) => {
+  app.post("/api/auth/signup", async (req, res) => {
     try {
-      const input = api.events.create.input.parse(req.body);
-      
-      // Generate a unique 4-digit PIN
-      let pin = "";
-      let attempts = 0;
-      let existingEvent = null;
-      
-      do {
-        pin = Math.floor(1000 + Math.random() * 9000).toString();
-        existingEvent = await storage.getEventByPin(pin);
-        attempts++;
-      } while (existingEvent && attempts < 10);
-      
-      if (existingEvent) {
-        return res.status(500).json({ message: "Failed to generate unique PIN" });
+      const { name, email, password } = signupSchema.parse(req.body);
+
+      // Check if user exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email already registered" });
       }
-      
-      const event = await storage.createEvent({
-        ...input,
-        pin,
+
+      const passwordHash = await hashPassword(password);
+      const user = await storage.createUser({
+        email,
+        name,
+        passwordHash,
       });
+
+      res.status(201).json({
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const isValid = await verifyPassword(password, user.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const user = await storage.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    });
+  });
+
+  // === EVENT ROUTES ===
+
+  app.post("/api/events/create", async (req, res) => {
+    try {
+      const userId = req.query.userId as string;
+      if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { name, capacity, startTime, endTime } = createEventSchema.parse(req.body);
+      const eventId = generateEventId();
+
+      const event = await storage.createEvent({
+        eventId,
+        name,
+        capacity,
+        startTime,
+        endTime,
+        userId,
+      });
+
       res.status(201).json(event);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        res.status(400).json({
-          message: err.errors[0].message,
-          field: err.errors[0].path.join('.'),
-        });
-      } else {
-        res.status(500).json({ message: "Internal server error" });
+        return res.status(400).json({ message: err.errors[0].message });
       }
+      res.status(500).json({ message: "Server error" });
     }
   });
 
-  app.get(api.events.join.path, async (req, res) => {
-    const event = await storage.getEventByPin(req.params.pin);
+  app.get("/api/events/:eventId", async (req, res) => {
+    const event = await storage.getEventByEventId(req.params.eventId);
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
     res.json(event);
   });
 
-  app.get(api.events.get.path, async (req, res) => {
+  app.get("/api/events/id/:id", async (req, res) => {
     const event = await storage.getEvent(Number(req.params.id));
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
     res.json(event);
   });
 
-  app.get(api.events.stats.path, async (req, res) => {
+  app.get("/api/user/events", async (req, res) => {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const events = await storage.getEventsByUserId(userId);
+    res.json(events);
+  });
+
+  app.get("/api/events/:id/stats", async (req, res) => {
     const event = await storage.getEvent(Number(req.params.id));
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
-    
+
     const activeNow = await storage.getActiveSessionCount(Number(req.params.id));
     const totalJoined = await storage.getTotalSessionCount(Number(req.params.id));
-    
-    res.json({ activeNow, totalJoined });
+
+    res.json({
+      activeNow,
+      totalJoined,
+      capacity: event.capacity,
+    });
   });
 
-  // === SOCKET.IO ===
-  
+  // === WEBSOCKET ===
+
   const io = new SocketIOServer(httpServer, {
-    path: "/socket.io",
-    cors: {
-      origin: "*",
-      methods: ["GET", "POST"]
-    }
+    cors: { origin: "*" },
   });
+
+  const roomState = new Map<string, { lastEffect: any; hostSocketId: string | null }>();
 
   io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+    console.log(`[Socket] Client connected: ${socket.id}`);
 
-    socket.on("join_event", async (data) => {
-      const { pin, eventId, role } = data;
-      console.log(`Socket ${socket.id} joining event:${pin} as ${role}`);
-      
-      // Track session in database
+    socket.on("join_event", async (data: { eventId: string; role: 'host' | 'attendee'; userId?: string }) => {
       try {
-        await storage.joinSession(socket.id, eventId, role);
-      } catch (err) {
-        console.error('Failed to join session:', err);
-      }
-      
-      socket.join(`event:${pin}`);
-      
-      // Broadcast participant update to all hosts in the event room
-      const activeNow = await storage.getActiveSessionCount(eventId);
-      const totalJoined = await storage.getTotalSessionCount(eventId);
-      io.to(`event:${pin}`).emit("participants_update", { activeNow, totalJoined });
-    });
+        const event = await storage.getEventByEventId(data.eventId);
+        if (!event) {
+          return socket.emit("error", { message: "Event not found" });
+        }
 
-    socket.on("leave_event", async (data) => {
-      const { pin, eventId } = data;
-      
-      // Update session status
-      try {
-        await storage.leaveSession(socket.id);
-      } catch (err) {
-        console.error('Failed to leave session:', err);
-      }
-      
-      socket.leave(`event:${pin}`);
-      
-      // Broadcast updated participant count
-      const activeNow = await storage.getActiveSessionCount(eventId);
-      const totalJoined = await storage.getTotalSessionCount(eventId);
-      io.to(`event:${pin}`).emit("participants_update", { activeNow, totalJoined });
-    });
+        const eventRoom = `event-${event.id}`;
+        socket.join(eventRoom);
 
-    // Host triggering an effect
-    socket.on("host_effect", (payload) => {
-      // payload: { pin: string, effect: EffectPayload }
-      // We broadcast to the room
-      if (payload.pin && payload.effect) {
-        // Add server timestamp for strict sync
-        const broadcastPayload = {
-          ...payload.effect,
-          // If host didn't provide startAt, set it to now + 200ms
-          startAt: payload.effect.startAt || (Date.now() + 200) 
-        };
-        
-        io.to(`event:${payload.pin}`).emit("effect", broadcastPayload);
-      }
-    });
+        if (!roomState.has(eventRoom)) {
+          roomState.set(eventRoom, { lastEffect: null, hostSocketId: null });
+        }
 
-    // Time Sync (NTP-like)
-    socket.on("time_sync", (payload, callback) => {
-      const serverReceiveTime = Date.now();
-      if (typeof callback === "function") {
-        callback({
-          clientSendTime: payload.clientSendTime,
-          serverReceiveTime,
-          serverSendTime: Date.now()
+        if (data.role === "host") {
+          const state = roomState.get(eventRoom)!;
+          state.hostSocketId = socket.id;
+        }
+
+        await storage.joinSession(socket.id, event.id, data.userId || null, data.role);
+        socket.emit("joined", { eventId: event.id });
+        io.to(eventRoom).emit("participant_update", {
+          active: await storage.getActiveSessionCount(event.id),
+          total: await storage.getTotalSessionCount(event.id),
         });
+      } catch (err) {
+        console.error("[Socket] Error joining event:", err);
+      }
+    });
+
+    socket.on("host_effect", (data: { eventId: string; effect: any }) => {
+      const roomState_data = roomState.get(`event-${data.eventId}`);
+      if (roomState_data && roomState_data.hostSocketId === socket.id) {
+        roomState_data.lastEffect = data.effect;
+        io.to(`event-${data.eventId}`).emit("effect", data.effect);
       }
     });
 
     socket.on("disconnect", async () => {
-      console.log("Client disconnected:", socket.id);
-      
-      // Mark session as inactive on disconnect
-      try {
-        await storage.leaveSession(socket.id);
-      } catch (err) {
-        console.error('Failed to mark session as inactive:', err);
-      }
+      await storage.leaveSession(socket.id);
+      console.log(`[Socket] Client disconnected: ${socket.id}`);
     });
   });
 
