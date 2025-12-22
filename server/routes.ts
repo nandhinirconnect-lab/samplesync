@@ -1,186 +1,83 @@
+
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { storage } from "./storage";
-import { generateEventId, hashPassword, verifyPassword } from "./auth";
+import { api } from "@shared/routes";
 import { z } from "zod";
-
-// Auth schemas
-const signupSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
-});
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-});
-
-const createEventSchema = z.object({
-  name: z.string().min(1),
-  capacity: z.number().int().min(1),
-  startTime: z.number(), // Unix ms
-  endTime: z.number(),
-});
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // === AUTH ROUTES ===
+  // === REST API ===
   
-  app.post("/api/auth/signup", async (req, res) => {
+  app.post(api.events.create.path, async (req, res) => {
     try {
-      const { name, email, password } = signupSchema.parse(req.body);
-
-      // Check if user exists
-      const existingUser = await storage.getUserByEmail(email);
-      if (existingUser) {
-        return res.status(400).json({ message: "Email already registered" });
+      const input = api.events.create.input.parse(req.body);
+      
+      // Generate a unique 4-digit PIN
+      let pin = "";
+      let attempts = 0;
+      let existingEvent = null;
+      
+      do {
+        pin = Math.floor(1000 + Math.random() * 9000).toString();
+        existingEvent = await storage.getEventByPin(pin);
+        attempts++;
+      } while (existingEvent && attempts < 10);
+      
+      if (existingEvent) {
+        return res.status(500).json({ message: "Failed to generate unique PIN" });
       }
-
-      const passwordHash = await hashPassword(password);
-      const user = await storage.createUser({
-        email,
-        name,
-        passwordHash,
-      });
-
-      res.status(201).json({
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        },
-      });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const { email, password } = loginSchema.parse(req.body);
-
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-
-      const isValid = await verifyPassword(password, user.passwordHash);
-      if (!isValid) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-
-      res.json({
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        },
-      });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  app.get("/api/auth/me", async (req, res) => {
-    const userId = req.query.userId as string;
-    if (!userId) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    const user = await storage.getUserById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
-    });
-  });
-
-  // === EVENT ROUTES ===
-
-  app.post("/api/events/create", async (req, res) => {
-    try {
-      const userId = req.query.userId as string;
-      if (!userId) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      const { name, capacity, startTime, endTime } = createEventSchema.parse(req.body);
-      const eventId = generateEventId();
-
+      
       const event = await storage.createEvent({
-        eventId,
-        name,
-        capacity,
-        startTime,
-        endTime,
-        userId,
+        ...input,
+        pin,
       });
-
       res.status(201).json(event);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+        res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      } else {
+        res.status(500).json({ message: "Internal server error" });
       }
-      res.status(500).json({ message: "Server error" });
     }
   });
 
-  app.get("/api/events/:eventId", async (req, res) => {
-    const event = await storage.getEventByEventId(req.params.eventId);
+  app.get(api.events.join.path, async (req, res) => {
+    const event = await storage.getEventByPin(req.params.pin);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ message: 'Event not found' });
     }
     res.json(event);
   });
 
-  app.get("/api/events/id/:id", async (req, res) => {
+  app.get(api.events.get.path, async (req, res) => {
     const event = await storage.getEvent(Number(req.params.id));
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ message: 'Event not found' });
     }
     res.json(event);
   });
 
-  app.get("/api/user/events", async (req, res) => {
-    const userId = req.query.userId as string;
-    if (!userId) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    const events = await storage.getEventsByUserId(userId);
-    res.json(events);
-  });
-
-  app.get("/api/events/:id/stats", async (req, res) => {
+  app.get(api.events.stats.path, async (req, res) => {
     const event = await storage.getEvent(Number(req.params.id));
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return res.status(404).json({ message: 'Event not found' });
     }
-
+    
     const activeNow = await storage.getActiveSessionCount(Number(req.params.id));
     const totalJoined = await storage.getTotalSessionCount(Number(req.params.id));
 
     res.json({
       activeNow,
       totalJoined,
-      capacity: event.capacity,
+      capacity: event.capacity ?? 1000,
     });
   });
 
@@ -195,9 +92,9 @@ export async function registerRoutes(
   io.on("connection", (socket) => {
     console.log(`[Socket] Client connected: ${socket.id}`);
 
-    socket.on("join_event", async (data: { eventId: string; role: 'host' | 'attendee'; userId?: string }) => {
+    socket.on("join_event", async (data: { eventId: number; role: 'host' | 'attendee' }) => {
       try {
-        const event = await storage.getEventByEventId(data.eventId);
+        const event = await storage.getEvent(data.eventId);
         if (!event) {
           return socket.emit("error", { message: "Event not found" });
         }
@@ -214,7 +111,7 @@ export async function registerRoutes(
           state.hostSocketId = socket.id;
         }
 
-        await storage.joinSession(socket.id, event.id, data.userId || null, data.role);
+        await storage.joinSession(socket.id, event.id, data.role);
         socket.emit("joined", { eventId: event.id });
         io.to(eventRoom).emit("participant_update", {
           active: await storage.getActiveSessionCount(event.id),
@@ -225,11 +122,12 @@ export async function registerRoutes(
       }
     });
 
-    socket.on("host_effect", (data: { eventId: string; effect: any }) => {
-      const roomState_data = roomState.get(`event-${data.eventId}`);
+    socket.on("host_effect", (data: { eventId: number; effect: any }) => {
+      const eventRoom = `event-${data.eventId}`;
+      const roomState_data = roomState.get(eventRoom);
       if (roomState_data && roomState_data.hostSocketId === socket.id) {
         roomState_data.lastEffect = data.effect;
-        io.to(`event-${data.eventId}`).emit("effect", data.effect);
+        io.to(eventRoom).emit("effect", data.effect);
       }
     });
 
