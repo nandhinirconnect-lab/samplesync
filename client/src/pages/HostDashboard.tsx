@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useSocket } from "@/hooks/use-socket";
 import { useEvent } from "@/hooks/use-events";
+import { useTorch } from "@/hooks/use-torch";
 import { GlowButton } from "@/components/GlowButton";
 import { StatusIndicator } from "@/components/StatusIndicator";
-import { Zap, ZapOff, Activity, AlertCircle, StopCircle, Radio, Settings2, Share2, Copy, Users, Wifi } from "lucide-react";
+import { Zap, ZapOff, Activity, AlertCircle, StopCircle, Radio, Settings2, Share2, Copy, Users, Wifi, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import type { EffectType } from "@shared/schema";
@@ -14,11 +15,17 @@ export default function HostDashboard() {
   const eventId = parseInt(id || "0");
   const { data: event, isLoading: eventLoading } = useEvent(eventId);
   const { isConnected, latency, emitEffect, participants } = useSocket(eventId, 'host', event?.pin);
+  const { requestPermission, hasPermission } = useTorch();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const [activeEffect, setActiveEffect] = useState<EffectType | null>(null);
   const [strobeHz, setStrobeHz] = useState(5);
+
+  // Request flashlight permission on mount
+  useEffect(() => {
+    requestPermission();
+  }, [requestPermission]);
 
   useEffect(() => {
     if (!eventLoading && !event) {
@@ -72,6 +79,23 @@ export default function HostDashboard() {
 
       <main className="max-w-md mx-auto px-6 pt-8 space-y-8">
         
+        {/* Permission Banner */}
+        {!hasPermission && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 flex gap-3 text-left"
+          >
+            <Lock className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+            <div className="text-sm text-yellow-200/80">
+              <p className="font-bold mb-2">Flashlight Access Needed</p>
+              <GlowButton onClick={requestPermission} size="sm" className="w-full">
+                Enable Flashlight
+              </GlowButton>
+            </div>
+          </motion.div>
+        )}
+
         {/* Event Info Card */}
         <motion.div 
           initial={{ opacity: 0, y: 10 }}

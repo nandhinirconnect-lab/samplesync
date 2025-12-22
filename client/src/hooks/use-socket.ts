@@ -88,9 +88,9 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
   }, [eventId, role, timeOffset, pin]);
 
   const emitEffect = (type: EffectPayload['type'], options: Partial<EffectPayload> = {}) => {
-    if (!socketRef.current || role !== 'host') return;
+    if (!socketRef.current) return;
     
-    // Future scheduling: 100ms in future to allow propagation
+    // Future scheduling: 150ms in future to allow propagation
     const now = Date.now() + timeOffset;
     const startAt = now + 150; 
 
@@ -100,9 +100,13 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
       ...options
     };
     
-    // Optimistic update for host
+    // Immediate local effect (for both host and attendee)
     setLastEffect(payload); 
-    socketRef.current.emit('effect', payload);
+    
+    // Broadcast to all participants if host
+    if (role === 'host' && socketRef.current && pin) {
+      socketRef.current.emit('host_effect', { pin, effect: payload });
+    }
   };
 
   return { isConnected, latency, timeOffset, lastEffect, emitEffect, participants };
