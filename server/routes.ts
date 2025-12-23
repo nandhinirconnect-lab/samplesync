@@ -17,13 +17,17 @@ export async function registerRoutes(
     try {
       const input = api.events.create.input.parse(req.body);
       
-      // Generate a unique 4-digit PIN
+      // Generate a unique 8-digit + 1 capital letter PIN (e.g., 12345678A)
       let pin = "";
       let attempts = 0;
       let existingEvent = null;
       
       do {
-        pin = Math.floor(1000 + Math.random() * 9000).toString();
+        // Generate 8 random digits
+        const digits = Math.floor(Math.random() * 100000000).toString().padStart(8, '0');
+        // Generate 1 random capital letter
+        const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+        pin = digits + letter;
         existingEvent = await storage.getEventByPin(pin);
         attempts++;
       } while (existingEvent && attempts < 10);
