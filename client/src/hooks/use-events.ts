@@ -59,11 +59,20 @@ export function useJoinEvent() {
   });
 }
 
-export function useEvent(id: number) {
+export function useEvent(id: number | string) {
   return useQuery({
     queryKey: [api.events.get.path, id],
     queryFn: async () => {
-      const url = buildUrl(api.events.get.path, { id });
+      let url = '';
+      
+      // If id is a number, use numeric endpoint; if string (UUID), use hostId endpoint
+      if (typeof id === 'number') {
+        url = buildUrl(api.events.get.path, { id });
+      } else {
+        // Assume it's a host ID (UUID string)
+        url = `/api/events/host/${id}`;
+      }
+      
       const res = await fetch(url, { credentials: "include" });
       
       if (res.status === 404) return null;
@@ -71,6 +80,6 @@ export function useEvent(id: number) {
       
       return api.events.get.responses[200].parse(await res.json());
     },
-    enabled: !!id && !isNaN(id),
+    enabled: !!id,
   });
 }

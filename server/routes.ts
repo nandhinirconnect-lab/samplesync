@@ -17,7 +17,7 @@ export async function registerRoutes(
     try {
       const input = api.events.create.input.parse(req.body);
       
-      // Generate a unique 8-digit + 1 capital letter PIN (e.g., 12345678A)
+      // Generate a unique PIN for attendees (8 digits + 1 capital letter)
       let pin = "";
       let attempts = 0;
       let existingEvent = null;
@@ -40,7 +40,12 @@ export async function registerRoutes(
         ...input,
         pin,
       });
-      res.status(201).json(event);
+      
+      // Return both PIN and hostId so frontend can show both
+      res.status(201).json({
+        ...event,
+        eventPin: pin,
+      });
     } catch (err) {
       if (err instanceof z.ZodError) {
         res.status(400).json({
@@ -63,6 +68,15 @@ export async function registerRoutes(
 
   app.get(api.events.get.path, async (req, res) => {
     const event = await storage.getEvent(Number(req.params.id));
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    res.json(event);
+  });
+
+  // Get event by host ID (for host rejoin)
+  app.get("/api/events/host/:hostId", async (req, res) => {
+    const event = await storage.getEventByHostId(req.params.hostId);
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }

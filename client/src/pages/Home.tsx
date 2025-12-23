@@ -29,10 +29,26 @@ export default function Home() {
     }
     
     const hostId = uuidv4();
-    createEvent.mutate({
-      name: eventName.trim(),
-      hostId,
-    });
+    createEvent.mutate(
+      {
+        name: eventName.trim(),
+        hostId,
+      },
+      {
+        onSuccess: (data) => {
+          // Show host ID to user
+          toast({
+            title: "Event Created!",
+            description: `Host ID: ${data.hostId}. Save this to rejoin later.`,
+          });
+          // Store host ID in localStorage for quick access
+          localStorage.setItem("lastHostId", data.hostId);
+          localStorage.setItem("lastEventPin", data.pin);
+          // Navigate to host dashboard with hostId
+          setLocation(`/host/${data.hostId}`);
+        },
+      }
+    );
   };
 
   const handleJoin = async (e: React.FormEvent) => {

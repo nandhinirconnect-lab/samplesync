@@ -7,6 +7,7 @@ export interface IStorage {
   createEvent(event: InsertEvent): Promise<Event>;
   getEventByPin(pin: string): Promise<Event | undefined>;
   getEvent(id: number): Promise<Event | undefined>;
+  getEventByHostId(hostId: string): Promise<Event | undefined>;
   joinSession(sessionId: string, eventId: number, role: 'host' | 'attendee'): Promise<Session>;
   leaveSession(sessionId: string): Promise<void>;
   getActiveSessionCount(eventId: number): Promise<number>;
@@ -26,6 +27,11 @@ export class DatabaseStorage implements IStorage {
 
   async getEvent(id: number): Promise<Event | undefined> {
     const [event] = await db.select().from(events).where(eq(events.id, id));
+    return event;
+  }
+
+  async getEventByHostId(hostId: string): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.hostId, hostId));
     return event;
   }
 

@@ -12,9 +12,9 @@ import type { EffectType } from "@shared/schema";
 
 export default function HostDashboard() {
   const { id } = useParams();
-  const eventId = parseInt(id || "0");
-  const { data: event, isLoading: eventLoading } = useEvent(eventId);
-  const { isConnected, latency, emitEffect, participants, lastEffect } = useSocket(eventId, 'host', event?.pin);
+  const hostId = id; // This is now the host ID (UUID)
+  const { data: event, isLoading: eventLoading } = useEvent(hostId);
+  const { isConnected, latency, emitEffect, participants, lastEffect } = useSocket(event?.id || 0, 'host', event?.pin);
   const { requestPermission, hasPermission, toggle } = useTorch();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
