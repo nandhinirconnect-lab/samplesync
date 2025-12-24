@@ -52,6 +52,15 @@ export const api = {
         }),
         404: errorSchemas.notFound,
       },
+    },
+    hostLogin: {
+      method: 'GET' as const,
+      path: '/api/events/host-login/:id/:password',
+      responses: {
+        200: z.custom<typeof events.$inferSelect>(),
+        401: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
     }
   }
 };

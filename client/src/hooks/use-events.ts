@@ -59,6 +59,29 @@ export function useJoinEvent() {
   });
 }
 
+export function useHostLogin() {
+  const [, setLocation] = useLocation();
+
+  return useMutation({
+    mutationFn: async ({ eventId, password }: { eventId: string; password: string }) => {
+      const url = buildUrl(api.events.hostLogin.path, { id: eventId, password });
+      const res = await fetch(url, { credentials: "include" });
+      
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Invalid Event ID or Password");
+        if (res.status === 404) throw new Error("Event not found");
+        throw new Error("Failed to login");
+      }
+      
+      return api.events.hostLogin.responses[200].parse(await res.json());
+    },
+    onSuccess: (event) => {
+      // Navigate to host dashboard using Host ID (UUID)
+      setLocation(`/host/${event.hostId}`);
+    },
+  });
+}
+
 export function useEvent(id: number | string) {
   return useQuery({
     queryKey: [api.events.get.path, id],
