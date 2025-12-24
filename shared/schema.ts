@@ -6,7 +6,7 @@ import { z } from "zod";
 // === TABLE DEFINITIONS ===
 export const events = pgTable("events", {
   id: serial("id").primaryKey(),
-  pin: text("pin").notNull().unique(), // 4-digit PIN
+  pin: text("pin").notNull().unique(), // 8 digits + 1 capital letter (9 chars total)
   name: text("name").notNull(),
   hostId: text("host_id").notNull(), // Anonymous ID for host ownership
   isActive: boolean("is_active").default(true),

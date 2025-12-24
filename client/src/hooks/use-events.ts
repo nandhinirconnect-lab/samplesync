@@ -40,7 +40,7 @@ export function useJoinEvent() {
 
   return useMutation({
     mutationFn: async (pin: string) => {
-      if (!pin || pin.length !== 4) throw new Error("PIN must be 4 digits");
+      if (!pin || pin.length !== 9) throw new Error("PIN must be 8 digits + 1 letter");
       
       const url = buildUrl(api.events.join.path, { pin });
       const res = await fetch(url, { credentials: "include" });

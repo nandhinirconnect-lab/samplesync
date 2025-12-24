@@ -53,10 +53,10 @@ export default function Home() {
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin.length !== 4) {
+    if (pin.length !== 9) {
       toast({
         title: "Invalid PIN",
-        description: "Please enter a 4-digit PIN.",
+        description: "Please enter 8 digits + 1 letter (e.g., 12345678A).",
         variant: "destructive",
       });
       return;
@@ -109,15 +109,15 @@ export default function Home() {
               <input
                 type="text"
                 value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="Enter 4-digit PIN"
-                className="flex-1 bg-transparent border-none text-center text-xl font-bold tracking-[0.5em] placeholder:tracking-normal placeholder:font-normal placeholder:text-muted-foreground/50 focus:ring-0 text-white h-14"
-                pattern="\d{4}"
-                inputMode="numeric"
+                onChange={(e) => setPin(e.target.value.replace(/[^0-9A-Z]/g, '').slice(0, 9).toUpperCase())}
+                placeholder="12345678A"
+                className="flex-1 bg-transparent border-none text-center text-xl font-bold tracking-[0.3em] placeholder:tracking-normal placeholder:font-normal placeholder:text-muted-foreground/50 focus:ring-0 text-white h-14"
+                maxLength={9}
+                inputMode="text"
               />
               <button
                 type="submit"
-                disabled={joinEvent.isPending || pin.length !== 4}
+                disabled={joinEvent.isPending || pin.length !== 9}
                 className="bg-white/10 hover:bg-white/20 text-white rounded-xl px-6 font-bold disabled:opacity-50 transition-colors"
               >
                 {joinEvent.isPending ? "..." : <ArrowRight />}
