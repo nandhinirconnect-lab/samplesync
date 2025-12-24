@@ -29,8 +29,8 @@ export function useCreateEvent() {
       return api.events.create.responses[201].parse(await res.json());
     },
     onSuccess: (event) => {
-      // Navigate to host dashboard
-      setLocation(`/host/${event.id}`);
+      // Navigate to host dashboard using Host ID (UUID)
+      setLocation(`/host/${event.hostId}`);
     },
   });
 }
