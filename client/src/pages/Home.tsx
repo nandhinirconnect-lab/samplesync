@@ -2,20 +2,24 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { GlowButton } from "@/components/GlowButton";
-import { useCreateEvent, useJoinEvent } from "@/hooks/use-events";
-import { Zap, Smartphone, ArrowRight, Music, Users } from "lucide-react";
+import { useCreateEvent, useJoinEvent, useHostLogin } from "@/hooks/use-events";
+import { Zap, Smartphone, ArrowRight, Music, Users, LogIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from "uuid";
 
 export default function Home() {
   const [pin, setPin] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showHostLogin, setShowHostLogin] = useState(false);
   const [eventName, setEventName] = useState("");
+  const [hostEventId, setHostEventId] = useState("");
+  const [hostPassword, setHostPassword] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   const createEvent = useCreateEvent();
   const joinEvent = useJoinEvent();
+  const hostLogin = useHostLogin();
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +70,28 @@ export default function Home() {
       onError: (err) => {
         toast({
           title: "Join Failed",
+          description: err.message,
+          variant: "destructive",
+        });
+      }
+    });
+  };
+
+  const handleHostLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hostEventId.trim() || !hostPassword.trim()) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter both Event ID and Password.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    hostLogin.mutate({ eventId: hostEventId, password: hostPassword }, {
+      onError: (err) => {
+        toast({
+          title: "Login Failed",
           description: err.message,
           variant: "destructive",
         });
@@ -134,16 +160,72 @@ export default function Home() {
             </div>
           </div>
 
-          {!showCreateForm ? (
-            <GlowButton 
-              variant="primary" 
-              size="lg" 
-              className="w-full"
-              onClick={() => setShowCreateForm(true)}
-              disabled={createEvent.isPending}
-            >
-              Host an Event
-            </GlowButton>
+          {!showCreateForm && !showHostLogin ? (
+            <div className="space-y-2">
+              <GlowButton 
+                variant="primary" 
+                size="lg" 
+                className="w-full"
+                onClick={() => setShowCreateForm(true)}
+                disabled={createEvent.isPending}
+              >
+                Host an Event
+              </GlowButton>
+              <button
+                onClick={() => setShowHostLogin(true)}
+                className="w-full bg-white/10 hover:bg-white/20 text-white rounded-xl px-6 py-3 font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Host Login
+              </button>
+            </div>
+          ) : showHostLogin ? (
+            <form onSubmit={handleHostLogin} className="space-y-3">
+              <div className="glass-panel rounded-xl p-4">
+                <input
+                  type="text"
+                  value={hostEventId}
+                  onChange={(e) => setHostEventId(e.target.value)}
+                  placeholder="Event ID (e.g., 123)"
+                  maxLength={10}
+                  className="w-full bg-transparent border-none text-white placeholder:text-muted-foreground focus:ring-0 outline-none"
+                  autoFocus
+                />
+              </div>
+              <div className="glass-panel rounded-xl p-4">
+                <input
+                  type="text"
+                  value={hostPassword}
+                  onChange={(e) => setHostPassword(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="Password (4 digits)"
+                  maxLength={4}
+                  inputMode="numeric"
+                  className="w-full bg-transparent border-none text-white placeholder:text-muted-foreground focus:ring-0 outline-none"
+                />
+              </div>
+              <div className="flex gap-2">
+                <GlowButton 
+                  variant="primary" 
+                  size="lg" 
+                  className="flex-1"
+                  type="submit"
+                  disabled={hostLogin.isPending || !hostEventId.trim() || !hostPassword.trim()}
+                >
+                  {hostLogin.isPending ? "Logging in..." : "Login"}
+                </GlowButton>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHostLogin(false);
+                    setHostEventId("");
+                    setHostPassword("");
+                  }}
+                  className="flex-1 bg-white/10 hover:bg-white/20 text-white rounded-xl px-6 font-bold disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           ) : (
             <form onSubmit={handleCreate} className="space-y-3">
               <div className="glass-panel rounded-xl p-4">

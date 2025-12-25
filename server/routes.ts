@@ -36,9 +36,13 @@ export async function registerRoutes(
         return res.status(500).json({ message: "Failed to generate unique PIN" });
       }
       
+      // Generate a host password (4 random digits)
+      const password = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      
       const event = await storage.createEvent({
         ...input,
         pin,
+        password,
       });
       
       // Return both PIN and hostId so frontend can show both
@@ -80,6 +84,20 @@ export async function registerRoutes(
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
     }
+    res.json(event);
+  });
+
+  // Host login by Event ID and Password
+  app.get(api.events.hostLogin.path, async (req, res) => {
+    const event = await storage.getEvent(Number(req.params.id));
+    if (!event) {
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    
+    if (event.password !== req.params.password) {
+      return res.status(401).json({ message: 'Invalid Event ID or Password' });
+    }
+    
     res.json(event);
   });
 
