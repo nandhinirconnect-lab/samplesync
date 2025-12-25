@@ -40,14 +40,16 @@ export default function Home() {
       },
       {
         onSuccess: (data) => {
-          // Show host ID to user
+          // Show host ID and password to user
           toast({
             title: "Event Created!",
-            description: `Host ID: ${data.hostId}. Save this to rejoin later.`,
+            description: `Event ID: ${data.id} | Password: ${data.password} | Save these to rejoin!`,
           });
-          // Store host ID in localStorage for quick access
+          // Store credentials in localStorage for quick access
           localStorage.setItem("lastHostId", data.hostId);
           localStorage.setItem("lastEventPin", data.pin);
+          localStorage.setItem("lastEventId", String(data.id));
+          localStorage.setItem("lastEventPassword", data.password);
           // Navigate to host dashboard with hostId
           setLocation(`/host/${data.hostId}`);
         },
