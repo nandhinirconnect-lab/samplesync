@@ -28,7 +28,8 @@ export const insertEventSchema = createInsertSchema(events).omit({
   id: true, 
   createdAt: true,
   isActive: true,
-  pin: true  // PIN generated server-side
+  pin: true,  // PIN generated server-side
+  password: true  // Password generated server-side
 });
 
 // === TYPES ===
