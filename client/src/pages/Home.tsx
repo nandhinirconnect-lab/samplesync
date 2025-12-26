@@ -14,6 +14,7 @@ export default function Home() {
   const [eventName, setEventName] = useState("");
   const [hostEventId, setHostEventId] = useState("");
   const [hostPassword, setHostPassword] = useState("");
+  const [createdCredentials, setCreatedCredentials] = useState<{ id: number; password: string; pin: string; hostId: string } | null>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
@@ -40,18 +41,24 @@ export default function Home() {
       },
       {
         onSuccess: (data) => {
-          // Show host ID and password to user
-          toast({
-            title: "Event Created!",
-            description: `Event ID: ${data.id} | Password: ${data.password} | Save these to rejoin!`,
+          // Show credentials prominently before redirecting
+          setCreatedCredentials({
+            id: data.id,
+            password: data.password,
+            pin: data.pin,
+            hostId: data.hostId
           });
-          // Store credentials in localStorage for quick access
+          
+          // Also store credentials in localStorage for quick access
           localStorage.setItem("lastHostId", data.hostId);
           localStorage.setItem("lastEventPin", data.pin);
           localStorage.setItem("lastEventId", String(data.id));
           localStorage.setItem("lastEventPassword", data.password);
-          // Navigate to host dashboard with hostId
-          setLocation(`/host/${data.hostId}`);
+          
+          // Redirect after 5 seconds
+          setTimeout(() => {
+            setLocation(`/host/${data.hostId}`);
+          }, 5000);
         },
       }
     );
@@ -100,6 +107,80 @@ export default function Home() {
       }
     });
   };
+
+  // Show credentials screen if event was just created
+  if (createdCredentials) {
+    return (
+      <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center p-6">
+        <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-secondary/20 rounded-full blur-[100px] pointer-events-none" />
+
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          className="w-full max-w-md relative z-10"
+        >
+          <div className="text-center space-y-6">
+            <div>
+              <h1 className="text-4xl font-bold text-white mb-2">Event Created!</h1>
+              <p className="text-muted-foreground">Save these credentials to rejoin anytime</p>
+            </div>
+
+            {/* Event ID Card */}
+            <div className="glass-panel rounded-2xl p-6 space-y-2">
+              <p className="text-sm text-muted-foreground uppercase tracking-wider">Event ID</p>
+              <div className="text-4xl font-bold text-primary">{createdCredentials.id}</div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(String(createdCredentials.id));
+                  toast({ title: "Copied!", description: "Event ID copied to clipboard" });
+                }}
+                className="w-full text-xs text-muted-foreground hover:text-white transition-colors mt-3"
+              >
+                Click to copy
+              </button>
+            </div>
+
+            {/* Password Card */}
+            <div className="glass-panel rounded-2xl p-6 space-y-2">
+              <p className="text-sm text-muted-foreground uppercase tracking-wider">Password</p>
+              <div className="text-4xl font-bold text-accent">{createdCredentials.password}</div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(createdCredentials.password);
+                  toast({ title: "Copied!", description: "Password copied to clipboard" });
+                }}
+                className="w-full text-xs text-muted-foreground hover:text-white transition-colors mt-3"
+              >
+                Click to copy
+              </button>
+            </div>
+
+            {/* Attendee PIN Card */}
+            <div className="glass-panel rounded-2xl p-6 space-y-2 border border-green-500/30">
+              <p className="text-sm text-green-400 uppercase tracking-wider">Attendee PIN</p>
+              <div className="text-3xl font-bold text-green-400">{createdCredentials.pin}</div>
+              <p className="text-xs text-muted-foreground mt-3">Share this PIN with attendees</p>
+            </div>
+
+            {/* Continue Button */}
+            <div className="pt-4 space-y-2">
+              <GlowButton
+                variant="primary"
+                size="lg"
+                className="w-full"
+                onClick={() => setLocation(`/host/${createdCredentials.hostId}`)}
+              >
+                Go to Dashboard
+              </GlowButton>
+              <p className="text-xs text-muted-foreground">Redirecting in 5 seconds...</p>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-center p-6">
