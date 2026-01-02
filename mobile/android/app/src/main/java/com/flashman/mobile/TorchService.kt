@@ -10,6 +10,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class TorchService : Service() {
@@ -38,12 +39,14 @@ class TorchService : Service() {
       }
     } catch (e: Exception) {
       cameraId = null
+      Log.e("TorchService", "Error finding camera id", e)
     }
     createNotificationChannel()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     val state = intent?.getBooleanExtra(EXTRA_STATE, true) ?: true
+    Log.d("TorchService", "onStartCommand state=$state startId=$startId")
 
     if (state) {
       val notif = buildNotification()
@@ -80,9 +83,12 @@ class TorchService : Service() {
 
   private fun setTorch(on: Boolean) {
     try {
-      cameraId?.let { cameraManager.setTorchMode(it, on) }
+      cameraId?.let {
+        Log.d("TorchService", "setTorch id=$it on=$on")
+        cameraManager.setTorchMode(it, on)
+      }
     } catch (e: Exception) {
-      // ignore
+      Log.e("TorchService", "Failed to set torch", e)
     }
   }
 

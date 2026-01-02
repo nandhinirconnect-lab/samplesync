@@ -89,13 +89,16 @@ export default function useMobileTorch() {
 
   const startBackground = useCallback(async () => {
     try {
+      console.log('[Torch][JS] startBackground() called')
       if (NativeTorchModule && NativeTorchModule.startTorch) {
+        console.log('[Torch][JS] Using NativeTorchModule.startTorch')
         NativeTorchModule.startTorch(true);
         setIsOn(true);
         return true;
       }
 
       if (NativeTorch && NativeTorch.switchState) {
+        console.log('[Torch][JS] Using react-native-torch.switchState')
         await NativeTorch.switchState(true);
         setIsOn(true);
         return true;
@@ -112,13 +115,16 @@ export default function useMobileTorch() {
 
   const stopBackground = useCallback(async () => {
     try {
+      console.log('[Torch][JS] stopBackground() called')
       if (NativeTorchModule && NativeTorchModule.startTorch) {
+        console.log('[Torch][JS] Using NativeTorchModule.startTorch(false)')
         NativeTorchModule.startTorch(false);
         setIsOn(false);
         return true;
       }
 
       if (NativeTorch && NativeTorch.switchState) {
+        console.log('[Torch][JS] Using react-native-torch.switchState(false)')
         await NativeTorch.switchState(false);
         setIsOn(false);
         return true;
