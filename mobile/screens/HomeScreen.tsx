@@ -99,7 +99,7 @@ export default function HomeScreen({ navigation }: any) {
             style={styles.input}
             placeholder="12345678A"
             value={pin}
-            onChangeText={setPin}
+            onChangeText={(text) => setPin(text.replace(/[^0-9A-Za-z]/g, '').slice(0, 9).toUpperCase())}
             maxLength={9}
             placeholderTextColor="#666"
           />

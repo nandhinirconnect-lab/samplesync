@@ -2,6 +2,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { Server as SocketIOServer } from "socket.io";
+import { performance } from 'perf_hooks';
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -126,7 +127,52 @@ export async function registerRoutes(
   const roomState = new Map<string, { lastEffect: any; hostSocketId: string | null }>();
 
   io.on("connection", (socket) => {
-    console.log(`[Socket] Client connected: ${socket.id}`);
+    console.log(`[Socket] Client connected: ${socket.id}`, { query: socket.handshake.query });
+
+    // Auto-join if client provided eventId and role in the connection query
+    try {
+      const q: any = socket.handshake.query || {};
+      const maybeEventId = q.eventId || q.eventid || q.eventID;
+      const maybeRole = q.role;
+      if (maybeEventId) {
+        (async () => {
+          const eventId = Number(maybeEventId);
+          const role = maybeRole === 'host' ? 'host' : 'attendee';
+          try {
+            const event = await storage.getEvent(eventId);
+            if (!event) {
+              console.log(`[Socket] Auto-join: event not found ${eventId}`);
+              return;
+            }
+
+            const eventRoom = `event-${event.id}`;
+            socket.join(eventRoom);
+
+            if (!roomState.has(eventRoom)) {
+              roomState.set(eventRoom, { lastEffect: null, hostSocketId: null });
+            }
+
+            if (role === 'host') {
+              const state = roomState.get(eventRoom)!;
+              state.hostSocketId = socket.id;
+              console.log(`[Socket] Auto-join: set hostSocketId for ${eventRoom} = ${socket.id}`);
+            }
+
+            await storage.joinSession(socket.id, event.id, role as 'host' | 'attendee');
+            socket.emit('joined', { eventId: event.id });
+            io.to(eventRoom).emit('participant_update', {
+              active: await storage.getActiveSessionCount(event.id),
+              total: await storage.getTotalSessionCount(event.id),
+            });
+            console.log(`[Socket] Auto-join complete for ${socket.id} -> ${eventRoom}`);
+          } catch (err) {
+            console.error('[Socket] Auto-join error:', err);
+          }
+        })();
+      }
+    } catch (err) {
+      console.error('[Socket] Auto-join setup failed', err);
+    }
 
     socket.on("join_event", async (data: { eventId: number; role: 'host' | 'attendee' }) => {
       try {
@@ -159,17 +205,32 @@ export async function registerRoutes(
     });
 
     socket.on("host_effect", (data: { eventId: number; effect: any }) => {
+      console.log(`[Socket] host_effect from ${socket.id}:`, data && typeof data === 'object' ? { eventId: data.eventId, effectType: data.effect?.type } : data);
       const eventRoom = `event-${data.eventId}`;
       const roomState_data = roomState.get(eventRoom);
       if (roomState_data && roomState_data.hostSocketId === socket.id) {
         roomState_data.lastEffect = data.effect;
         io.to(eventRoom).emit("effect", data.effect);
+        console.log(`[Socket] broadcasted effect to ${eventRoom}`);
+      } else {
+        console.log(`[Socket] host_effect ignored: hostSocketId mismatch for ${eventRoom}`, { hostSocketId: roomState_data?.hostSocketId });
       }
     });
 
     socket.on("disconnect", async () => {
       await storage.leaveSession(socket.id);
       console.log(`[Socket] Client disconnected: ${socket.id}`);
+    });
+
+    // Time sync endpoint for clients using high-resolution monotonic timestamps
+    socket.on('time:sync', (data: { clientPerf?: number; clientEpoch?: number }, cb: (response: { serverPerf: number; serverEpoch: number }) => void) => {
+      try {
+        const serverPerf = performance.now();
+        const serverEpoch = Date.now();
+        if (typeof cb === 'function') cb({ serverPerf, serverEpoch });
+      } catch (err) {
+        console.error('[Socket] time:sync handler error', err);
+      }
     });
   });
 

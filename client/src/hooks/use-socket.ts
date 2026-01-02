@@ -57,42 +57,46 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
       }, delay);
     });
 
-    socket.on('participants_update', (stats: ParticipantStats) => {
-      setParticipants(stats);
+    socket.on('participant_update', (stats: { active: number; total: number }) => {
+      setParticipants({ activeNow: stats.active, totalJoined: stats.total });
     });
 
     // Time Sync Logic
-    const syncInterval = setInterval(() => {
-      const start = Date.now();
-      socket.emit('time:sync', { clientSendTime: start }, (response: TimeSyncResponse) => {
-        const end = Date.now();
-        const rtt = end - start;
+    const sync = async () => {
+      const clientPerfStart = performance.now();
+      const clientEpochStart = Date.now();
+      socket.emit('time:sync', { clientPerf: clientPerfStart, clientEpoch: clientEpochStart }, (response: TimeSyncResponse) => {
+        const clientPerfEnd = performance.now();
+        const rtt = clientPerfEnd - clientPerfStart;
         const currentLatency = rtt / 2;
-        
-        // Calculate offset
-        // Server Time = Client Time + Offset
-        // Offset = Server Time - Client Time
-        // We use the midpoint of the RTT as the "Server Time" instant matching "Client Send + Latency"
-        const serverTimeAtReceive = response.serverReceiveTime;
-        const computedOffset = serverTimeAtReceive - (start + currentLatency);
-        
+
+        // Server provides both monotonic and epoch timestamps
+        const serverEpoch = response.serverEpoch;
+        // Compute offset in epoch ms: serverEpoch - (clientEpoch + latency)
+        const computedOffset = serverEpoch - (clientEpochStart + currentLatency);
+
         setLatency(currentLatency);
-        setTimeOffset(prev => (prev * 0.8) + (computedOffset * 0.2)); // Smooth it out
+        setTimeOffset(prev => (prev * 0.6) + (computedOffset * 0.4));
       });
-    }, 2000);
+    };
+
+    // initial sync and periodic
+    sync();
+    const syncInterval = setInterval(sync, 1500);
 
     return () => {
       clearInterval(syncInterval);
       socket.disconnect();
     };
-  }, [eventId, role, timeOffset, pin]);
+  }, [eventId, role, pin]);
 
   const emitEffect = (type: EffectPayload['type'], options: Partial<EffectPayload> = {}) => {
     if (!socketRef.current) return;
     
-    // Future scheduling: 150ms in future to allow propagation
+    // Schedule start time with margin based on measured latency (use smaller baseline)
     const now = Date.now() + timeOffset;
-    const startAt = now + 150; 
+    const margin = Math.max(100, Math.ceil(latency * 1.2));
+    const startAt = now + margin;
 
     const payload: EffectPayload = {
       type,
@@ -104,8 +108,8 @@ export function useSocket(eventId?: number, role: 'host' | 'attendee' = 'attende
     setLastEffect(payload); 
     
     // Broadcast to all participants if host
-    if (role === 'host' && socketRef.current && pin) {
-      socketRef.current.emit('host_effect', { pin, effect: payload });
+    if (role === 'host' && socketRef.current && eventId) {
+      socketRef.current.emit('host_effect', { eventId, effect: payload });
     }
   };
 
