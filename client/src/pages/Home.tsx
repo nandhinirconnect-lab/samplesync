@@ -218,7 +218,7 @@ export default function Home() {
               <input
                 type="text"
                 value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/[^0-9A-Z]/g, '').slice(0, 9).toUpperCase())}
+                onChange={(e) => setPin(e.target.value.replace(/[^0-9A-Za-z]/g, '').slice(0, 9).toUpperCase())}
                 placeholder="12345678A"
                 className="flex-1 bg-transparent border-none text-center text-xl font-bold tracking-[0.3em] placeholder:tracking-normal placeholder:font-normal placeholder:text-muted-foreground/50 focus:ring-0 text-white h-14"
                 maxLength={9}

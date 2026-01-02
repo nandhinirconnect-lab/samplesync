@@ -4,12 +4,7 @@
     "slug": "flashman-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1a1a1a"
-    },
+    
     "updates": {
       "fallbackToCacheTimeout": 0
     },
@@ -19,10 +14,6 @@
       "bundleIdentifier": "com.flashman.mobile"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a1a1a"
-      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.FLASHLIGHT",
@@ -30,9 +21,7 @@
       ],
       "package": "com.flashman.mobile"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    
     "plugins": [
       [
         "expo-camera",

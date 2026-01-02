@@ -11,9 +11,10 @@ import useMobileTorch from '../hooks/useMobileTorch';
 
 export default function AttendeeScreen({ route, navigation }: any) {
   const { pin } = route.params;
-  const { hasPermission, toggle, requestPermission } = useMobileTorch();
+  const { hasPermission, toggle, requestPermission, startBackground, stopBackground } = useMobileTorch();
   const [lastEffect, setLastEffect] = useState<string | null>(null);
   const [isFlashing, setIsFlashing] = useState(false);
+  const [persistentOn, setPersistentOn] = useState(false);
 
   useEffect(() => {
     requestPermission();
@@ -28,10 +29,11 @@ export default function AttendeeScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (lastEffect === 'TORCH_ON' && hasPermission) {
-      toggle(true);
+      // Start persistent background torch so it stays on when screen is off
+      startBackground();
       setIsFlashing(true);
     } else if (lastEffect === 'TORCH_OFF' && hasPermission) {
-      toggle(false);
+      stopBackground();
       setIsFlashing(false);
     } else if (lastEffect === 'PULSE' && hasPermission) {
       setIsFlashing(true);
@@ -42,6 +44,23 @@ export default function AttendeeScreen({ route, navigation }: any) {
       }, 200);
     }
   }, [lastEffect, hasPermission]);
+
+  const handlePersistentToggle = async () => {
+    if (!hasPermission) {
+      await requestPermission();
+      if (!hasPermission) return;
+    }
+
+    if (persistentOn) {
+      await stopBackground();
+      setPersistentOn(false);
+      setIsFlashing(false);
+    } else {
+      await startBackground();
+      setPersistentOn(true);
+      setIsFlashing(true);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -62,6 +81,12 @@ export default function AttendeeScreen({ route, navigation }: any) {
         </View>
       ) : (
         <View style={styles.contentContainer}>
+          <TouchableOpacity
+            style={[styles.persistentButton, persistentOn ? styles.persistentActive : null]}
+            onPress={handlePersistentToggle}
+          >
+            <Text style={styles.buttonText}>{persistentOn ? 'Stop Persistent Torch' : 'Start Persistent Torch'}</Text>
+          </TouchableOpacity>
           <View
             style={[
               styles.flashIndicator,
@@ -181,5 +206,18 @@ const styles = StyleSheet.create({
     color: '#00ff88',
     textAlign: 'center',
     fontSize: 14,
+  },
+  persistentButton: {
+    backgroundColor: '#111',
+    borderColor: '#00ff88',
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
+  persistentActive: {
+    backgroundColor: '#00ff88',
   },
 });
